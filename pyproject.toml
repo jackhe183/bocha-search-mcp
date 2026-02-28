@@ -1,0 +1,29 @@
+[project]
+name = "bocha-mcp"
+version = "0.1.0"
+description = "博察搜索 MCP 服务器 - 为 AI 提供强大的中文搜索能力"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "mcp[cli]>=1.6.0",
+    "httpx>=0.28.0",
+    "python-dotenv>=1.0.0"
+]
+
+[[project.authors]]
+name = "jackhe"
+email = "jackhe@users.noreply.github.com"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project.scripts]
+bocha-mcp = "server:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["."]
+exclude = [
+  "*.pyc",
+  "__pycache__"
+]
