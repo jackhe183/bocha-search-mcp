@@ -5,7 +5,7 @@
 
 import json
 
-from utils import _truncate, _clean_summary
+from .utils import _clean_summary, _truncate
 
 
 def _format_webpage(r: dict, index: int) -> str:

@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock, patch
 
 import httpx
 
-import api
+from bocha_search_mcp import api
 
 
 class BochaApiTests(unittest.IsolatedAsyncioTestCase):

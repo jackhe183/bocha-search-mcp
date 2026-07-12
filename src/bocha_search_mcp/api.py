@@ -7,8 +7,8 @@ from urllib.parse import urlparse
 
 import httpx
 
-from formatter import _format_card, _format_rerank_result, _format_webpage
-from utils import _clean_summary, _limit_output, _validate_output_format, _validate_params
+from .formatter import _format_card, _format_rerank_result, _format_webpage
+from .utils import _clean_summary, _limit_output, _validate_output_format, _validate_params
 
 OutputFormat = Literal["text", "json"]
 

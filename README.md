@@ -44,19 +44,18 @@ BOCHA_API_BASE_URL="https://api.bochaai.com"
 
 ```bash
 claude mcp add bocha-search -s user -- \
-  /你的路径/bocha-search-mcp/.venv/bin/python \
-  /你的路径/bocha-search-mcp/server.py
+  /你的路径/bocha-search-mcp/.venv/bin/bocha-search-mcp
 ```
 
 **Windows（PowerShell）：**
 
 ```powershell
 claude mcp add bocha-search -s user -- `
-  D:\projects\bocha-search-mcp\.venv\Scripts\python.exe `
-  D:\projects\bocha-search-mcp\server.py
+  D:\projects\bocha-search-mcp\.venv\Scripts\bocha-search-mcp.exe
 ```
 
 > `-s user` 表示全局可用，也可用 `-s project` 仅当前项目可用。
+> 已有配置如果使用 `.venv/bin/python server.py` 仍可继续工作；`server.py` 是兼容入口。
 
 ### 4. 验证
 
@@ -93,8 +92,8 @@ claude mcp list
 ```python
 import asyncio
 from dotenv import load_dotenv
-load_dotenv()  # 必须在 import api 之前调用
-from api import (
+load_dotenv()  # 必须在 import bocha_search_mcp.api 之前调用
+from bocha_search_mcp.api import (
     bocha_web_search,
     bocha_ai_search,
     bocha_rerank,
@@ -119,6 +118,12 @@ asyncio.run(main())
 
 ```bash
 npx @modelcontextprotocol/inspector .venv/bin/python server.py
+```
+
+或使用安装后的命令：
+
+```bash
+npx @modelcontextprotocol/inspector .venv/bin/bocha-search-mcp
 ```
 
 浏览器打开 `http://localhost:5173`，在 Tools 面板手动测试。
@@ -155,18 +160,21 @@ npx @modelcontextprotocol/inspector .venv/bin/python server.py
 
 ```
 bocha-search-mcp/
-├── server.py        # MCP 入口：加载环境变量、注册工具、启动服务
-├── api.py           # 博查 API 客户端：HTTP 调用、错误处理、工具函数
-├── formatter.py     # 博查响应格式化：网页结果、结构化卡片、天气卡片
-├── utils.py         # 通用工具：参数校验、输出截断、长度限制
-├── tests/           # 离线单元测试
-├── pyproject.toml   # 依赖声明
-├── .env.example     # API Key 格式示例
-├── .env             # API Key（本地，不提交 git）
+├── src/
+│   └── bocha_search_mcp/
+│       ├── server.py     # MCP 入口：加载环境变量、注册工具、启动服务
+│       ├── api.py        # 博查 API 客户端：HTTP 调用、错误处理、工具函数
+│       ├── formatter.py  # 博查响应格式化：网页结果、结构化卡片、天气卡片
+│       └── utils.py      # 通用工具：参数校验、输出截断、长度限制
+├── server.py             # 兼容入口：保留旧 MCP 配置可用
+├── tests/                # 离线单元测试
+├── pyproject.toml        # 依赖、打包和命令入口声明
+├── .env.example          # API Key 格式示例
+├── .env                  # API Key（本地，不提交 git）
 └── .gitignore
 ```
 
-**换搜索 API？** 只需替换 `api.py` + `formatter.py`，`utils.py` 和 `server.py` 不用动。
+**换搜索 API？** 只需替换 `src/bocha_search_mcp/api.py` + `src/bocha_search_mcp/formatter.py`，`utils.py` 和 `server.py` 不用动。
 
 ## 修改后生效方式
 
