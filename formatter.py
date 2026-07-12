@@ -20,6 +20,22 @@ def _format_webpage(r: dict, index: int) -> str:
     )
 
 
+def _format_rerank_result(result: dict, index: int) -> str:
+    """格式化单条 rerank 结果。"""
+    original_index = result.get("index", "N/A")
+    score = result.get("relevance_score", result.get("rerankScore", "N/A"))
+    document = result.get("document", {})
+    if isinstance(document, dict):
+        text = document.get("text", "")
+    else:
+        text = str(document)
+
+    return (
+        f"[{index}] 原始序号: {original_index} | 相关性: {score}\n"
+        f"    文档: {_truncate(text, 500)}"
+    )
+
+
 def _format_card(raw: str) -> str:
     """格式化结构化卡片，精简输出以节省 token。"""
     try:
