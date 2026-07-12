@@ -8,7 +8,7 @@ import json
 
 import httpx
 
-from utils import _validate_params, _limit_output
+from utils import _validate_params, _limit_output, _clean_summary
 from formatter import _format_webpage, _format_card
 
 # 模块加载时读取一次，MCP 每次启动都是独立进程，无需动态刷新
@@ -54,11 +54,11 @@ def _handle_http_error(e: httpx.HTTPStatusError) -> str:
             "3) 如已过期，重新生成 Key 并更新 .env。\n"
             "   配置路径：项目根目录/.env → BOCHA_API_KEY=\"sk-xxx\""
         )
-    if status == 402:
+    if status in (402, 403):
         return (
-            f"❌ 额度不足（HTTP 402）：API 调用余额已用完。\n"
-            f"   原因：账户免费额度耗尽或套餐过期。\n"
-            f"   排查：到 https://open.bochaai.com 登录后查看余额和用量，必要时充值。\n"
+            f"❌ 额度不足（HTTP {status}）：API 调用余额已用完或套餐无权限。\n"
+            f"   原因：账户免费额度耗尽、套餐过期或当前接口未包含在套餐中。\n"
+            f"   排查：到 https://open.bochaai.com 登录后查看余额、用量和套餐权限，必要时充值或升级。\n"
             f"   服务端返回：{msg}"
         )
     if status == 429:
@@ -117,6 +117,31 @@ def _handle_request_error(e: httpx.RequestError) -> str:
     )
 
 
+def _dedupe_pages(pages: list[dict]) -> list[dict]:
+    """按摘要和 URL 路径去重，同一内容的不同 URL（m站/PC站/搜索页）只保留第一条。"""
+    seen_summary = set()
+    seen_path = set()
+    result = []
+    for p in pages:
+        # 1) 摘要前 40 字去重
+        key = p.get("summary", "")[:40]
+        if key and key in seen_summary:
+            continue
+        # 2) URL 路径去重：同一篇文章的 m站/PC站/搜索页 URL 路径相同
+        url = p.get("url", "")
+        from urllib.parse import urlparse
+        parsed = urlparse(url)
+        path_key = parsed.path.rstrip("/")  # 去掉尾部斜杠统一比较
+        if path_key and path_key in seen_path:
+            continue
+        if key:
+            seen_summary.add(key)
+        if path_key:
+            seen_path.add(path_key)
+        result.append(p)
+    return result
+
+
 async def bocha_web_search(
     query: str,
     freshness: str = "noLimit",
@@ -156,6 +181,7 @@ async def bocha_web_search(
         if not pages:
             return "未找到相关结果。"
 
+        pages = _dedupe_pages(pages)
         header = f"搜索「{query}」，共 {len(pages)} 条结果：\n"
         results = [_format_webpage(r, i + 1) for i, r in enumerate(pages)]
         return _limit_output(header + "\n\n".join(results))
@@ -232,6 +258,7 @@ async def bocha_ai_search(
         if not webpages and not cards:
             return "未找到相关结果。"
 
+        webpages = _dedupe_pages(webpages)
         parts = []
         # 网页结果
         if webpages:
