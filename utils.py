@@ -6,6 +6,10 @@ import re
 MAX_SUMMARY_LEN = 300
 # 单次输出最大字符数，防止 token 爆炸
 MAX_TOTAL_OUTPUT = 8000
+VALID_FRESHNESS = {"noLimit", "oneDay", "oneWeek", "oneMonth", "oneYear"}
+VALID_OUTPUT_FORMATS = {"text", "json"}
+DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+DATE_RANGE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}\.\.\d{4}-\d{2}-\d{2}$")
 
 # 摘要中常见的广告/导航噪音模式
 _NOISE_PATTERNS = [
@@ -50,7 +54,7 @@ def _clean_summary(text: str) -> str:
     return cleaned
 
 
-def _validate_params(query: str, count: int) -> str | None:
+def _validate_params(query: str, count: int, freshness: str | None = None) -> str | None:
     """参数不合法时返回错误字符串，否则返回 None。"""
     if not query or not query.strip():
         return (
@@ -63,7 +67,32 @@ def _validate_params(query: str, count: int) -> str | None:
             f"❌ 参数错误：count={count}，超出有效范围 1-50。\n"
             f"   排查：将 count 调整为 1-50 之间的整数，例如 count=10。"
         )
+    if freshness is not None and not _is_valid_freshness(freshness):
+        return (
+            f"❌ 参数错误：freshness={freshness!r} 不合法。\n"
+            "   可选项：noLimit, oneDay, oneWeek, oneMonth, oneYear, "
+            "YYYY-MM-DD, 或 YYYY-MM-DD..YYYY-MM-DD。"
+        )
     return None
+
+
+def _validate_output_format(output_format: str) -> str | None:
+    """输出格式不合法时返回错误字符串，否则返回 None。"""
+    if output_format not in VALID_OUTPUT_FORMATS:
+        return (
+            f"❌ 参数错误：format={output_format!r} 不合法。\n"
+            "   可选项：text 或 json。"
+        )
+    return None
+
+
+def _is_valid_freshness(freshness: str) -> bool:
+    """校验博查 freshness 参数。"""
+    return (
+        freshness in VALID_FRESHNESS
+        or bool(DATE_RE.match(freshness))
+        or bool(DATE_RANGE_RE.match(freshness))
+    )
 
 
 def _limit_output(text: str) -> str:

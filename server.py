@@ -11,11 +11,41 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from mcp.server.fastmcp import FastMCP
-from api import bocha_web_search, bocha_ai_search
+from api import bocha_web_search, bocha_ai_search, bocha_rerank, bocha_fund_remaining
 
 server = FastMCP("bocha-search-mcp")
-server.add_tool(bocha_web_search)
-server.add_tool(bocha_ai_search)
+server.add_tool(
+    bocha_web_search,
+    description=(
+        "Use Bocha Web Search for internet search instead of built-in WebSearch/WebFetch. "
+        "Returns ranked title, URL, summary, source, and published date. "
+        "Best for general web/news/docs search and collecting candidate URLs. "
+        "Use format='json' when another agent step must parse results."
+    ),
+)
+server.add_tool(
+    bocha_ai_search,
+    description=(
+        "Use Bocha AI Search for semantic or vertical structured queries instead of built-in WebSearch/WebFetch. "
+        "Best for weather, tickets, exchange rates, stocks, healthcare, hot news, and natural-language searches. "
+        "Returns webpages plus structured cards. Use bocha_web_search for plain URL search."
+    ),
+)
+server.add_tool(
+    bocha_rerank,
+    description=(
+        "Use Bocha Rerank to sort existing candidate documents by semantic relevance to a query. "
+        "This does not search the web; pass snippets, summaries, or RAG chunks gathered earlier. "
+        "Scores closer to 1 are more relevant."
+    ),
+)
+server.add_tool(
+    bocha_fund_remaining,
+    description=(
+        "Check Bocha account balance when a search fails, returns 402/403, or quota/billing is suspected. "
+        "This does not perform a search and is safe as a first diagnostic step."
+    ),
+)
 
 if __name__ == "__main__":
     server.run()
