@@ -1,178 +1,124 @@
 # bocha-search-mcp
 
-博查搜索 MCP 工具，供 Claude Code agent 调用。
+博查搜索 MCP Server，为 Claude Code 等 AI Agent 提供网络搜索能力。
 
----
+## 工具说明
 
-## 工程结构与设计说明
+| 工具 | 用途 | 适用场景 |
+|------|------|---------|
+| `bocha_web_search` | 网页搜索 | 查找技术文档、新闻资讯、一般性搜索 |
+| `bocha_ai_search` | AI 语义搜索 | 查天气、票务、汇率、新闻热点等结构化信息 |
 
-```
-bocha-search-mcp/          ← 本地开发目录（你随时可以改这里的文件）
-├── server.py              ← MCP 服务入口，全部逻辑在这一个文件
-├── pyproject.toml         ← uv 依赖声明
-├── .env                   ← API Key（本地，不提交 git）
-├── .env.example           ← Key 格式示例（提交 git）
-└── .gitignore
-```
+**选择建议**：一般搜索用 `bocha_web_search`；需要结构化数据（天气/票务/汇率等）用 `bocha_ai_search`。
 
-**为什么只有一个 `server.py`？**
-MCP 工具的本质是一个 stdio 进程，Claude Code 每次调用时启动、用完就退出。
-不需要路由、不需要持久化、不需要多文件拆分，单文件反而更好维护。
+## 快速开始
 
-**为什么用 `load_dotenv()` 而不是在 Claude Code 配置里写 `env`？**
-`.env` 文件放在工程目录里，和代码在一起，不用在多个地方同步 Key。
-`load_dotenv()` 在读取环境变量之前调用，之后 `os.environ.get()` 就能取到值。
+### 1. 安装依赖
 
-**为什么 `HEADERS` 在模块级别构建？**
-MCP 服务每次都是全新进程，模块加载即初始化，没有"运行中修改 Key"的场景。
-模块级构建比每次请求重建更简洁。
-
----
-
-## 第一步：初始化工程
-
-```powershell
-# 进入你的本地开发目录
-cd D:\projects\bocha-search-mcp
-
-# 用 uv 安装依赖
+```bash
+cd bocha-search-mcp
 uv sync
 ```
 
+### 2. 配置 API Key
 
----
-
-## 第二步：配置 API Key
-
-```powershell
-copy .env.example .env
+```bash
+cp .env.example .env
 ```
 
-编辑 `.env`：
+编辑 `.env`，填入博查 API Key：
 
 ```env
 BOCHA_API_KEY="sk-xxx"
 ```
 
----
+> Key 获取：[https://open.bochaai.com](https://open.bochaai.com) 注册后在控制台创建。
 
-## 第三步：创建软连接
+### 3. 注册到 Claude Code
 
-**目的**：Claude Code 从固定路径加载 MCP，但实际文件在你的开发目录。
-修改开发目录的 `server.py` 立即生效，不需要复制文件。
+**macOS / Linux：**
 
-以**管理员身份**打开 PowerShell：
-
-```powershell
-# 创建 Claude MCP 存放目录
-New-Item -ItemType Directory -Force -Path "$env:USERPROFILE\.claude\mcp-servers"
-
-# 创建 Junction（Windows 目录软连接）
-# 左边：Claude Code 读取的路径  右边：你的开发目录
-cmd /c mklink /J `
-    "$env:USERPROFILE\.claude\mcp-servers\bocha-search" `
-    "D:\projects\bocha-search-mcp"
-
-# 验证软连接建立成功
-dir "$env:USERPROFILE\.claude\mcp-servers"
+```bash
+claude mcp add bocha-search -s user -- \
+  /你的路径/bocha-search-mcp/.venv/bin/python \
+  /你的路径/bocha-search-mcp/server.py
 ```
 
-预期输出中能看到 `bocha-search [D:\projects\bocha-search-mcp]`。
+**Windows（PowerShell）：**
 
----
+```powershell
+claude mcp add bocha-search -s user -- `
+  D:\projects\bocha-search-mcp\.venv\Scripts\python.exe `
+  D:\projects\bocha-search-mcp\server.py
+```
 
-## 第四步：注册到 Claude Code
+> `-s user` 表示全局可用，也可用 `-s project` 仅当前项目可用。
 
-编辑 `%USERPROFILE%\.claude\settings.json`，添加以下配置：
+### 4. 验证
+
+重启 Claude Code 后，运行：
+
+```bash
+claude mcp list
+```
+
+看到 `bocha-search: ✔ Connected` 即配置成功。
+
+在对话中直接说"搜索 xxx"，Claude Code 会自动调用博查搜索。
+
+### 5. 禁用内置 WebSearch（可选）
+
+如果你使用非官方订阅，内置 WebSearch 可能无法使用。可在 `~/.claude/settings.json` 中禁用：
 
 ```json
 {
-  "mcpServers": {
-    "bocha-search": {
-      "type": "stdio",
-      "command": "C:\\Users\\jackHe\\.claude\\mcp-servers\\bocha-search\\.venv\\Scripts\\python.exe",
-      "args": [
-        "C:\\Users\\jackHe\\.claude\\mcp-servers\\bocha-search\\server.py"
-      ],
-      "env": {}
-    }
+  "permissions": {
+    "deny": ["WebSearch"]
   }
 }
 ```
 
-> **路径说明**
-> - Windows 下 `.venv` 的 Python 在 `Scripts\python.exe`，不是 macOS 的 `bin/python`
-> - 路径里用 `\\` 双反斜杠（JSON 转义要求）
-> - `env` 留空即可，Key 由 `.env` 文件提供
+## 测试
 
----
-
-## 测试流程
-
-### 测试 1：直接运行 Python 脚本（验证环境和 Key 是否正确）
-
-```powershell
-cd D:\projects\bocha-search-mcp
-.\.venv\Scripts\python.exe server.py
-```
-
-正常启动后会阻塞等待（stdio 模式），`Ctrl+C` 退出即可。
-如果报 `ModuleNotFoundError`，说明依赖没装好，重新执行 `uv pip install -e .`。
-
-### 测试 2：用 Python 直接调用搜索函数（验证 API Key 和网络）
-
-新建一个临时脚本 `test_api.py`：
+### 直接调用 Python 函数
 
 ```python
 import asyncio
-from server import bocha_web_search, bocha_ai_search
+from dotenv import load_dotenv
+load_dotenv()  # 必须在 import api 之前调用
+from api import bocha_web_search, bocha_ai_search
 
 async def main():
-    print("=== Web Search ===")
-    result = await bocha_web_search("Claude Code MCP 使用教程", count=3)
-    print(result)
-
-    print("\n=== AI Search ===")
-    result = await bocha_ai_search("今天北京天气", count=3)
-    print(result)
+    print(await bocha_web_search("FastMCP 使用教程", count=3))
+    print(await bocha_ai_search("今天北京天气", count=3))
 
 asyncio.run(main())
 ```
 
-```powershell
-.\.venv\Scripts\python.exe test_api.py
+### MCP Inspector 可视化测试
+
+```bash
+npx @modelcontextprotocol/inspector .venv/bin/python server.py
 ```
 
-能看到搜索结果说明 API Key 有效、网络通畅。
+浏览器打开 `http://localhost:5173`，在 Tools 面板手动测试。
 
-### 测试 3：用 MCP Inspector 验证 MCP 协议（可选）
-
-```powershell
-# 需要 Node.js 环境
-npx @modelcontextprotocol/inspector `
-    .\.venv\Scripts\python.exe `
-    server.py
-```
-
-浏览器打开 `http://localhost:5173`，在 Tools 面板能看到 `bocha_web_search` 和 `bocha_ai_search`，
-可以手动填参数测试返回值。
-
-### 测试 4：在 Claude Code 中调用
-
-重启 Claude Code 后，在对话中直接说：
+## 项目结构
 
 ```
-用 bocha_web_search 搜索"fastmcp 使用文档"
+bocha-search-mcp/
+├── server.py        # MCP 入口：加载环境变量、注册工具、启动服务
+├── api.py           # 博查 API 客户端：HTTP 调用、错误处理、工具函数
+├── formatter.py     # 博查响应格式化：网页结果、结构化卡片、天气卡片
+├── utils.py         # 通用工具：参数校验、输出截断、长度限制
+├── pyproject.toml   # 依赖声明
+├── .env.example     # API Key 格式示例
+├── .env             # API Key（本地，不提交 git）
+└── .gitignore
 ```
 
-Claude Code 会调用 MCP 工具并返回结果。
+**换搜索 API？** 只需替换 `api.py` + `formatter.py`，`utils.py` 和 `server.py` 不用动。
 
----
+## 修改后生效方式
 
-## 后续修改工作流
-
-1. 编辑 `D:\projects\bocha-search-mcp\server.py`
-2. 保存
-3. 在 Claude Code 里重新调用工具（Claude Code 每次调用都重启 MCP 进程，无需手动重启）
-
-不需要重新安装、不需要重新建软连接、不需要改任何配置。
+修改代码保存即可。Claude Code 每次调用都启动新进程，无需手动重启 MCP 服务。
