@@ -3,11 +3,12 @@
 import json
 import os
 from typing import Any, Literal
+from urllib.parse import urlparse
 
 import httpx
 
 from formatter import _format_card, _format_rerank_result, _format_webpage
-from utils import _limit_output, _validate_output_format, _validate_params
+from utils import _clean_summary, _limit_output, _validate_output_format, _validate_params
 
 OutputFormat = Literal["text", "json"]
 
@@ -171,6 +172,29 @@ async def _request_json(
         return resp.json()
 
 
+def _dedupe_pages(pages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """按摘要和 URL 路径去重，同一内容的不同 URL 只保留第一条。"""
+    seen_summary = set()
+    seen_path = set()
+    result = []
+    for page in pages:
+        key = _clean_summary(page.get("summary", ""))[:40]
+        if key and key in seen_summary:
+            continue
+
+        parsed = urlparse(page.get("url", ""))
+        path_key = parsed.path.rstrip("/")
+        if path_key and path_key in seen_path:
+            continue
+
+        if key:
+            seen_summary.add(key)
+        if path_key:
+            seen_path.add(path_key)
+        result.append(page)
+    return result
+
+
 def _webpages_to_json(query: str, pages: list[dict[str, Any]]) -> dict[str, Any]:
     """将网页搜索结果转成 agent 易解析的结构化数据。"""
     return {
@@ -183,7 +207,7 @@ def _webpages_to_json(query: str, pages: list[dict[str, Any]]) -> dict[str, Any]
                 "rank": index,
                 "title": r.get("name", "无标题"),
                 "url": r.get("url", ""),
-                "summary": r.get("summary", ""),
+                "summary": _clean_summary(r.get("summary", "")),
                 "site_name": r.get("siteName", ""),
                 "published_at": r.get("datePublished", ""),
             }
@@ -209,9 +233,8 @@ def _parse_ai_messages(data: dict[str, Any]) -> tuple[list[dict[str, Any]], list
                 continue
             webpages.extend(content.get("value", []))
         elif ctype != "image" and raw not in ("{}", ""):
-            parsed: Any
             try:
-                parsed = json.loads(raw)
+                parsed: Any = json.loads(raw)
             except (json.JSONDecodeError, TypeError):
                 parsed = raw
             cards.append({"content_type": ctype, "content": parsed})
@@ -250,7 +273,7 @@ async def bocha_web_search(
 
     try:
         data = await _request_json("POST", WEB_SEARCH_PATH, payload)
-        pages = data.get("data", {}).get("webPages", {}).get("value", [])
+        pages = _dedupe_pages(data.get("data", {}).get("webPages", {}).get("value", []))
         if not pages:
             if output_format == "json":
                 return _webpages_to_json(query, [])
@@ -312,6 +335,7 @@ async def bocha_ai_search(
     try:
         data = await _request_json("POST", AI_SEARCH_PATH, payload)
         webpages, cards = _parse_ai_messages(data)
+        webpages = _dedupe_pages(webpages)
 
         if output_format == "json":
             return {

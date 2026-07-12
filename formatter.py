@@ -5,17 +5,18 @@
 
 import json
 
-from utils import _truncate
+from utils import _truncate, _clean_summary
 
 
 def _format_webpage(r: dict, index: int) -> str:
     """格式化单条网页搜索结果。"""
     name = r.get("name", "无标题")
     url = r.get("url", "")
+    summary = _clean_summary(r.get("summary", ""))
     return (
         f"[{index}] {name}\n"
         f"    URL: {url}\n"
-        f"    摘要: {_truncate(r.get('summary', ''))}\n"
+        f"    摘要: {_truncate(summary)}\n"
         f"    来源: {r.get('siteName', 'N/A')} | 发布: {r.get('datePublished', 'N/A')}"
     )
 
