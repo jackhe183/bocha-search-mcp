@@ -1,6 +1,6 @@
 import unittest
 
-import server
+from bocha_search_mcp import server
 
 
 class ServerToolDescriptionTests(unittest.TestCase):

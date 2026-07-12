@@ -3,5 +3,7 @@
 .env.local
 __pycache__/
 *.pyc
+dist/
+*.egg-info/
 .idea/
 *.iml
